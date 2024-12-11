@@ -1,0 +1,147 @@
+---
+import { ClientRouter } from 'astro:transitions';
+---
+
+<!doctype html>
+<html lang="en" class="h-screen bg-zinc-100">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Iframe Persist</title>
+
+    <ClientRouter />
+  </head>
+
+  <body class="flex h-full flex-col" transition:animate="none">
+    <div class="flex-1">
+      <slot />
+    </div>
+
+    <div data-iframe-container>
+      <iframe
+        id="iframe1"
+        data-src="https://wikipedia.org"
+        style="position: absolute !important; width: 0; height: 0;"></iframe>
+      <iframe
+        id="iframe2"
+        data-src="https://wikipedia.org"
+        style="position: absolute !important; width: 0; height: 0;"></iframe>
+    </div>
+  </body>
+</html>
+
+<script>
+  import {
+    TRANSITION_BEFORE_SWAP,
+    isTransitionBeforeSwapEvent,
+    swapFunctions,
+  } from 'astro:transitions/client';
+
+  document.addEventListener(TRANSITION_BEFORE_SWAP, (event: Event) => {
+    if (!isTransitionBeforeSwapEvent(event)) {
+      return;
+    }
+
+    const PERSIST_ATTR = 'data-astro-transition-persist';
+
+    function swapBodyElement(newParent: Element, existingParent: Element): void {
+      let existingIframeContainer: Element | null = null;
+      for (let i = existingParent.children.length - 1; i >= 0; i--) {
+        const existingChild = existingParent.children[i];
+        console.log('existingChild', existingChild);
+        if (existingChild.hasAttribute('data-iframe-container')) {
+          console.log('found existing iframe container', existingChild.id);
+          existingIframeContainer = existingChild;
+        } else {
+          console.log('removing', existingChild);
+          existingChild.remove();
+        }
+      }
+
+      let newHasIframeContainer = false;
+      for (let i = newParent.children.length - 1; i >= 0; i--) {
+        const newChild = newParent.children[i];
+        console.log('newChild', newChild);
+        if (newChild.hasAttribute('data-iframe-container')) {
+          console.log('found new iframe container', newChild.id);
+          newHasIframeContainer = true;
+        } else {
+          console.log('adding', newChild);
+          existingParent.appendChild(newChild);
+        }
+      }
+
+      if (!newHasIframeContainer) {
+        existingIframeContainer?.remove();
+      }
+
+      for (const existingDescendant of existingParent.querySelectorAll(`[${PERSIST_ATTR}]`)) {
+        const id = existingDescendant.getAttribute(PERSIST_ATTR);
+        const newDescendant = newParent.querySelector(`[${PERSIST_ATTR}="${id}"]`);
+        if (newDescendant) {
+          // The element exists in the new page, replace it with the element
+          // from the old page so that state is preserved.
+          newDescendant.replaceWith(existingDescendant);
+        }
+      }
+    }
+
+    event.swap = function swap() {
+      const newDoc = event.newDocument;
+      swapFunctions.deselectScripts(newDoc);
+      swapFunctions.swapRootAttributes(newDoc);
+      swapFunctions.swapHeadElements(newDoc);
+      const restoreFocusFunction = swapFunctions.saveFocus();
+      swapBodyElement(newDoc.body, document.body);
+      restoreFocusFunction();
+    };
+  });
+</script>
+
+<script is:inline data-astro-rerun>
+  console.log('EXECUTING SCRIPT', location.pathname);
+
+  /**
+   * @param iframe {HTMLIFrameElement}
+   * @returns {ResizeObserver}
+   */
+  function attachIframeObserver(iframe) {
+    const id = iframe?.id;
+    console.log('attachIframeObserver', id);
+    /** @type {HTMLIFrameElement | undefined} */
+    const observeEl = id && window[`observe_${id}`];
+    if (!observeEl) {
+      return;
+    }
+
+    if (!iframe.hasAttribute('src')) {
+      iframe.src = iframe.getAttribute('data-src');
+    }
+
+    const observer = new ResizeObserver((m) => {
+      if (!document.body.contains(observeEl)) {
+        console.log('disconnecting', id);
+        observer.disconnect();
+        iframe.classList.remove(...observeEl.classList);
+        iframe.style.top = iframe.style.left = iframe.style.width = iframe.style.height = '0px';
+        return;
+      }
+
+      console.log(iframe.id, 'resize');
+
+      iframe.style.top = observeEl.offsetTop + 'px';
+      iframe.style.left = observeEl.offsetLeft + 'px';
+      iframe.style.width = observeEl.offsetWidth + 'px';
+      iframe.style.height = observeEl.offsetHeight + 'px';
+    });
+    observer.observe(observeEl);
+    iframe.classList.add(...observeEl.classList);
+
+    return observer;
+  }
+
+  attachIframeObserver(window.iframe1);
+  attachIframeObserver(window.iframe2);
+</script>

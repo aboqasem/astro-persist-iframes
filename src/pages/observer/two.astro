@@ -1,0 +1,18 @@
+---
+import ObserverLayout from '../../layouts/observer/ObserverLayout.astro';
+---
+
+<ObserverLayout>
+  <ul
+    class="fixed left-0 top-0 z-10 box-border flex w-full items-center justify-between bg-zinc-300 p-2 sm:p-3"
+  >
+    <li><a class="text-indigo-500" href="/">Home</a></li>
+    <li><a class="text-indigo-500" href="./one">One</a></li>
+    <li>Two</li>
+    <li><a class="text-indigo-500" href="./three">Three</a></li>
+  </ul>
+
+  <div class="mb-5 h-full w-full border-none sm:mb-0">
+    <div id="observe_iframe1" class="h-full w-full border-none"></div>
+  </div>
+</ObserverLayout>
